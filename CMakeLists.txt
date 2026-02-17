@@ -1,0 +1,46 @@
+# cmake_minimum_required(VERSION 3.1)
+# project(example)
+
+# set (CMAKE_CXX_STANDARD 11)
+# find_package(OpenCV REQUIRED)
+
+# include_directories(${OPENCV_INCLUDE_DIRS})
+# include_directories(${PROJECT_SOURCE_DIR}/include)
+
+# link_directories(${OpenCV_LIBRARY_DIRS})
+
+# set(example_src
+# src/main.cpp
+# )
+
+# add_executable(example ${example_src})
+#     target_link_libraries(example
+#     ${OpenCV_LIBRARIES}
+# )
+
+# target_compile_options(example
+#     PRIVATE -O3 -std=c++11
+# )
+
+cmake_minimum_required(VERSION 3.16)
+project(example LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(OpenCV REQUIRED)
+
+add_executable(example
+    src/main.cpp
+)
+
+target_include_directories(example PRIVATE
+    ${OpenCV_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(example PRIVATE
+    ${OpenCV_LIBS}
+)
+
+target_compile_options(example PRIVATE -O3)
