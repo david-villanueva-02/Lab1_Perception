@@ -45,6 +45,14 @@ static int dictFromString(const std::string& name){
     return it->second;
 }
 
+// Generate a single marker
+cv::Mat generateMarker(int markerId, int markerSize, cv::aruco::Dictionary dictionary){
+    // Generate the marker
+    cv::Mat markerImage;
+    cv::aruco::generateImageMarker(dictionary, markerId, markerSize, markerImage, 1);
+    return markerImage;
+} 
+
 int main(int argc, char *argv[])
 {
     if (argc < 7)
@@ -61,7 +69,24 @@ int main(int argc, char *argv[])
     int separation = std::atoi(argv[5]);
     std::string fileName = argv[6];
 
-    
+    // Extract the dictionary
+    cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
 
+    // Generate the background
+    const int rows = (numberOfRows*markerSize + separation*(numberOfRows+1));
+    const int cols = (numberOfCols*markerSize + separation*(numberOfCols+1));
+    cv::Mat baseImage = cv::Mat::ones(rows, cols, CV_8UC1)*255;
+
+    // Generate the markers and add them to the background
+    for (int i = 0; i < numberOfRows; i++){
+        for(int j = 0; j < numberOfCols; j++){
+            // Generate the marker
+            cv::Mat ArUco_i = generateMarker(i*numberOfCols+j, markerSize, dictionary);
+
+            // Add the marker to the background
+            ArUco_i.copyTo(baseImage(cv::Rect(j*markerSize + (j+1)*separation, i*markerSize + (i+1)*separation, markerSize, markerSize)));  
+        }   
+    }
+    cv::imwrite(fileName, baseImage);
     return 0;
 }
