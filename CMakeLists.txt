@@ -30,17 +30,50 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenCV REQUIRED)
 
+# Example code
 add_executable(example
-    src/main.cpp
+src/main.cpp
 )
 
 target_include_directories(example PRIVATE
-    ${OpenCV_INCLUDE_DIRS}
-    ${PROJECT_SOURCE_DIR}/include
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
 )
 
 target_link_libraries(example PRIVATE
-    ${OpenCV_LIBS}
+${OpenCV_LIBS}
 )
 
 target_compile_options(example PRIVATE -O3)
+
+# Generate marker
+add_executable(generate_marker
+src/generate_marker.cpp
+)
+
+target_include_directories(generate_marker PRIVATE
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(generate_marker PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(generate_marker PRIVATE -O3)
+
+# Generate board
+add_executable(generate_board
+src/generate_board.cpp
+)
+
+target_include_directories(generate_board PRIVATE
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(generate_board PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(generate_board PRIVATE -O3)
