@@ -3,12 +3,48 @@
 #include "opencv2/highgui.hpp"
 #include <opencv2/objdetect/aruco_detector.hpp>
 #include <iostream>
+#include "opencv2/imgcodecs.hpp"
+#include <string>
+#include <map>
+
+// Dictionary that maps the string input to the actual dictionary
+static int dictFromString(const std::string& name){
+    static const std::map<std::string,int> m = {
+        {"DICT_4X4_50", cv::aruco::DICT_4X4_50},
+        {"DICT_4X4_100", cv::aruco::DICT_4X4_100},
+        {"DICT_4X4_250", cv::aruco::DICT_4X4_250},
+        {"DICT_4X4_1000", cv::aruco::DICT_4X4_1000},
+
+        {"DICT_5X5_50", cv::aruco::DICT_5X5_50},
+        {"DICT_5X5_100", cv::aruco::DICT_5X5_100},
+        {"DICT_5X5_250", cv::aruco::DICT_5X5_250},
+        {"DICT_5X5_1000", cv::aruco::DICT_5X5_1000},
+
+        {"DICT_6X6_50", cv::aruco::DICT_6X6_50},
+        {"DICT_6X6_100", cv::aruco::DICT_6X6_100},
+        {"DICT_6X6_250", cv::aruco::DICT_6X6_250},
+        {"DICT_6X6_1000", cv::aruco::DICT_6X6_1000},
+
+        {"DICT_7X7_50", cv::aruco::DICT_7X7_50},
+        {"DICT_7X7_100", cv::aruco::DICT_7X7_100},
+        {"DICT_7X7_250", cv::aruco::DICT_7X7_250},
+        {"DICT_7X7_1000", cv::aruco::DICT_7X7_1000},
+
+        {"DICT_ARUCO_ORIGINAL", cv::aruco::DICT_ARUCO_ORIGINAL}
+    };
+
+    auto it = m.find(name);
+    if (it == m.end())
+        throw std::runtime_error("Unknown dictionary: " + name);
+
+    return it->second;
+}
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    if (argc < 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <video source no.>" << std::endl;
+        std::cout << "Usage: ./detection <video_source_no> <dictionary_name>" << std::endl;
         return -1;
     }
 
@@ -22,6 +58,10 @@ int main(int argc, char *argv[])
     }
 
     cv::Mat imgOriginal;  // input image
+
+    // Process parameters.
+    std::string dictionaryName = argv[2];
+    static int dictionary_name = dictFromString(dictionaryName);
 
     char charCheckForESCKey{0};
 
@@ -40,10 +80,10 @@ int main(int argc, char *argv[])
         // create matrix to store the marker corners and ids
         std::vector<int> markerIds;
         std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
-        
+
         // create the parametes for the detector and get the dictionary to use.
         cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
-        cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+        cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
         cv::aruco::ArucoDetector detector(dictionary, detectorParams);
 
         // detect the markers on the imageand draw the markers detected
