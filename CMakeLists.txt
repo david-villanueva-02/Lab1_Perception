@@ -77,3 +77,19 @@ ${OpenCV_LIBS}
 )
 
 target_compile_options(generate_board PRIVATE -O3)
+
+# Detect marker
+add_executable(detection
+    src/detection.cpp
+)
+
+target_include_directories(detection PRIVATE
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(detection PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(detection PRIVATE -O3)
