@@ -22,6 +22,11 @@
 #     PRIVATE -O3 -std=c++11
 # )
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 cmake_minimum_required(VERSION 3.16)
 project(example LANGUAGES CXX)
 
@@ -93,3 +98,19 @@ ${OpenCV_LIBS}
 )
 
 target_compile_options(detection PRIVATE -O3)
+
+# Get images
+add_executable(calibrate
+    src/calibrate.cpp
+)
+
+target_include_directories(calibrate PRIVATE
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(calibrate PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(calibrate PRIVATE -O3)

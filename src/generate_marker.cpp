@@ -81,7 +81,7 @@ int main(int argc, char *argv[]){
 
     cv::copyMakeBorder(markerImage, markerImage2, top, bottom, left, right, cv::BORDER_CONSTANT, 255);
     
-    cv::imwrite(fileName, markerImage2);
+    cv::imwrite("~/Documents/IFRoS/Perception/labs/lab1/images/" + fileName, markerImage2);
 
     return 0;
 }

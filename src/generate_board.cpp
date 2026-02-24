@@ -12,6 +12,8 @@
 #include <string>
 #include <map>
 
+#include <sstream>
+
 // Dictionary that maps the string input to the actual dictionary
 static int dictFromString(const std::string& name){
     static const std::map<std::string,int> m = {
@@ -87,6 +89,10 @@ int main(int argc, char *argv[])
             ArUco_i.copyTo(baseImage(cv::Rect(j*markerSize + (j+1)*separation, i*markerSize + (i+1)*separation, markerSize, markerSize)));  
         }   
     }
-    cv::imwrite(fileName, baseImage);
+
+    std::stringstream ss;
+    ss << "/home/david/Documents/IFRoS/Perception/labs/lab1/images/" << fileName;
+    cv::imwrite(ss.str(), baseImage);
+
     return 0;
 }
