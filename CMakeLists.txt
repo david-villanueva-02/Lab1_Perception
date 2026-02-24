@@ -93,3 +93,19 @@ ${OpenCV_LIBS}
 )
 
 target_compile_options(detection PRIVATE -O3)
+
+# Detect marker
+add_executable(calibration
+    src/calibration.cpp
+)
+
+target_include_directories(calibration PRIVATE
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(calibration PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(calibration PRIVATE -O3)
