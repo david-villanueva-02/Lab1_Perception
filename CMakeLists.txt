@@ -26,12 +26,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 cmake_minimum_required(VERSION 3.16)
 project(example LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenCV REQUIRED)
 
@@ -99,12 +97,12 @@ ${OpenCV_LIBS}
 
 target_compile_options(detection PRIVATE -O3)
 
-# Get images
+# Calibrate
 add_executable(calibrate
     src/calibrate.cpp
 )
 
-target_include_directories(calibrate PRIVATE
+target_include_directories(calibrate PUBLIC
 ${OpenCV_INCLUDE_DIRS}
 ${PROJECT_SOURCE_DIR}/include
 )
