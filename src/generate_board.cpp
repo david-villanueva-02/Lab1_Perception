@@ -1,21 +1,15 @@
-#include "opencv2/core/core.hpp"
-#include "opencv2/imgproc.hpp"
-#include "opencv2/highgui.hpp"
-
+#include <opencv2/core.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/objdetect/aruco_detector.hpp>
-
-#include "opencv2/imgproc.hpp"
-#include "opencv2/imgcodecs.hpp"
-#include "opencv2/highgui.hpp"
+#include <opencv2/objdetect/aruco_board.hpp>
 
 #include <iostream>
 #include <string>
 #include <map>
-
 #include <sstream>
 
 // Dictionary that maps the string input to the actual dictionary
-static int dictFromString(const std::string& name){
+static int dictFromString(const std::string& name) {
     static const std::map<std::string,int> m = {
         {"DICT_4X4_50", cv::aruco::DICT_4X4_50},
         {"DICT_4X4_100", cv::aruco::DICT_4X4_100},
@@ -47,52 +41,45 @@ static int dictFromString(const std::string& name){
     return it->second;
 }
 
-// Generate a single marker
-cv::Mat generateMarker(int markerId, int markerSize, cv::aruco::Dictionary dictionary){
-    // Generate the marker
-    cv::Mat markerImage;
-    cv::aruco::generateImageMarker(dictionary, markerId, markerSize, markerImage, 1);
-    return markerImage;
-} 
-
-int main(int argc, char *argv[])
-{
-    if (argc < 7)
-    {
-        std::cout << "Usage: ./generate_board <number_of_rows> <number_of_cols> <dictionary> <marker_size> <separation> <file_name> " << std::endl;
+int main(int argc, char* argv[]) {
+    if (argc < 7) {
+        std::cout << "Usage: ./generate_board <rows> <cols> <dictionary> <marker_size_px> <separation_px> <file_name>";
         return -1;
     }
 
-    // Extract parameters
-    int numberOfRows = std::atoi(argv[1]);
-    int numberOfCols = std::atoi(argv[2]);
-    int dictionary_name = dictFromString(argv[3]);
-    int markerSize = std::atoi(argv[4]);
-    int separation = std::atoi(argv[5]);
-    std::string fileName = argv[6];
+    // --- Extract parameters ----
+    const int boardRows = std::atoi(argv[1]);
+    const int boardCols = std::atoi(argv[2]);
+    const int dictionary_name = dictFromString(argv[3]);
+    const int markerSize = std::atoi(argv[4]);
+    const int separation = std::atoi(argv[5]);
+    const std::string fileName = argv[6];
 
-    // Extract the dictionary
-    cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
+    // Dictionary
+    const auto dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
 
-    // Generate the background
-    const int rows = (numberOfRows*markerSize + separation*(numberOfRows+1));
-    const int cols = (numberOfCols*markerSize + separation*(numberOfCols+1));
-    cv::Mat baseImage = cv::Mat::ones(rows, cols, CV_8UC1)*255;
+    auto board = cv::makePtr<cv::aruco::GridBoard>(
+        cv::Size(boardCols, boardRows),  // (cols, rows)
+        markerSize,
+        separation,
+        dictionary
+    );
 
-    // Generate the markers and add them to the background
-    for (int i = 0; i < numberOfRows; i++){
-        for(int j = 0; j < numberOfCols; j++){
-            // Generate the marker
-            cv::Mat ArUco_i = generateMarker(i*numberOfCols+j, markerSize, dictionary);
+    // Output image size 
+    const int width = boardCols * markerSize + (boardCols + 1) * separation;
+    const int height = boardRows * markerSize + (boardRows + 1) * separation;
 
-            // Add the marker to the background
-            ArUco_i.copyTo(baseImage(cv::Rect(j*markerSize + (j+1)*separation, i*markerSize + (i+1)*separation, markerSize, markerSize)));  
-        }   
-    }
+    // Create the base image and the board over it
+    cv::Mat boardImage;
+    board->generateImage(cv::Size(width, height), boardImage, separation, 1);
 
+    // Save the file
     std::stringstream ss;
     ss << "/home/david/Documents/IFRoS/Perception/labs/lab1/images/" << fileName;
-    cv::imwrite(ss.str(), baseImage);
+    if (!cv::imwrite(ss.str(), boardImage)) {
+        std::cerr << "Failed to write: " << ss.str() << "\n";
+        return -1;
+    }
 
     return 0;
 }
