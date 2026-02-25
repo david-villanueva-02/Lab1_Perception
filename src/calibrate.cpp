@@ -7,6 +7,8 @@
 #include <string>
 #include <map>
 
+#include <filesystem>
+
 // Dictionary that maps the string input to the actual dictionary
 static int dictFromString(const std::string& name){
     static const std::map<std::string,int> m = {
@@ -44,7 +46,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 8)
     {
-        std::cerr << "Usage: ./calibrate <video_source_no> <dictionary_name> <detector_parameters> <board_rows> <board_cols> <marker_size> <separation>  <file_name>" << std::endl;
+        std::cerr << "Usage: ./calibrate <video_source_no> <dictionary_name> <detector_parameters> <board_rows> <board_cols> <marker_size> <separation>  <file_name> <take_images_bool (optional)>" << std::endl;
         return -1;
     }
 
@@ -58,7 +60,6 @@ int main(int argc, char *argv[])
     std::string fileName = argv[8]; 
 
     // Process parameters.
-    std::string dictionaryName = argv[2];
     static int dictionary_name = dictFromString(dictionaryName);
 
     // std::cout << std::atoi(argv[1]) << std::endl;
@@ -71,44 +72,58 @@ int main(int argc, char *argv[])
     }
 
     cv::Mat imgOriginal;  // input image
-
+    std::string image_set_path;
 
     char charCheckForESCKey{0};
     char charCheckForCKey{0};
     int nframe = 0;
 
+    // Loop to take images
+    while (charCheckForESCKey != 27 && webCam.isOpened()){                                              
+        bool frameSuccess = webCam.read(imgOriginal);
 
+        if (!frameSuccess || imgOriginal.empty()){ 
+            std::cerr << "error: Frame could not be read." << std::endl;
+            break;
+        }
+        charCheckForCKey = cv::waitKey(1);
 
-    // // Create board object and ArucoDetector
-    // cv::aruco::GridBoard gridboard(cv::Size(boardRows, boardCols), markerSize, separation, dictionary_name);
-    // cv::aruco::ArucoDetector detector(dictionary_name, detectorParamsFile);
+        // Leave the loop and go to calibration
+        if(charCheckForCKey == 's' || std::atoi(argv[9]) == 0){
+            // Leaves the while loop to begin calibration
+            break;
+        }
+        
+        // Show ArUcos in image
+        std::vector<int> markerIds;
+        std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
 
-    // // Collected frames for calibration
-    // vector<vector<vector<Point2f>>> allMarkerCorners;
-    // vector<vector<int>> allMarkerIds;
-    // Size imageSize;
+        // Create the parametes for the detector and get the dictionary to use.
+        cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
+        cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
+        cv::aruco::ArucoDetector detector(dictionary, detectorParams);
 
-    // while(inputVideo.grab()) {
-    //     Mat image, imageCopy;
-    //     inputVideo.retrieve(image);
+        // Detect the markers on the imageand draw the markers detected
+        detector.detectMarkers(imgOriginal, markerCorners, markerIds, rejectedCandidates);
+        cv::Mat outputImage = imgOriginal.clone();
+        cv::aruco::drawDetectedMarkers(outputImage, markerCorners, markerIds);
 
-    //     vector<int> markerIds;
-    //     vector<vector<Point2f>> markerCorners, rejectedMarkers;
+        cv::imshow("imgOriginal", outputImage);
 
-    //     // Detect markers
-    //     detector.detectMarkers(image, markerCorners, markerIds, rejectedMarkers);
+        // Capture image when the c key is pressed and save it
+        if (charCheckForCKey == 'c' && std::atoi(argv[9]) == 1 && !markerIds.empty()){
+            
+            printf("Capturing image %d\n", nframe);
+            std::string fileName = "/home/david/Documents/IFRoS/Perception/labs/lab1/images/image_" + std::to_string(nframe) + ".jpg";
+            cv::imwrite(fileName, imgOriginal);
+            nframe++; // Counting the number of frames captured
+        }
 
-    //     // Refind strategy to detect more markers
-    //     if(refindStrategy) {
-    //         detector.refineDetectedMarkers(image, gridboard, markerCorners, markerIds, rejectedMarkers);
-    //     }
-    //     if(key == 'c' && !markerIds.empty()) {
-    //         cout << "Frame captured" << endl;
-    //         allMarkerCorners.push_back(markerCorners);
-    //         allMarkerIds.push_back(markerIds);
-    //         imageSize = image.size();
-    //     }
-    // }
+        // Gets the key pressed
+        charCheckForESCKey = cv::waitKey(1); 
+    }
+
+    
 
     return 0;
 }
