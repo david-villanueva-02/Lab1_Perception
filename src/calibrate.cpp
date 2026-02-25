@@ -1,10 +1,11 @@
 #include "opencv2/core/core.hpp"
 #include <opencv2/core/mat.hpp>
-// #include <opencv2/aruco.hpp>
+#include <opencv2/aruco.hpp>
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
 #include <opencv2/calib3d.hpp>
 #include <opencv2/objdetect/aruco_detector.hpp>
+#include <opencv2/objdetect/aruco_board.hpp>  // newer header location in many builds
 #include "opencv2/imgcodecs.hpp"
 
 #include <iostream>
@@ -39,8 +40,9 @@ const int dictFromString(const std::string& name){
     };
 
     auto it = m.find(name);
-    if (it == m.end())
+    if (it == m.end()){
         throw std::runtime_error("Unknown dictionary: " + name);
+    }
 
     return it->second;
 }
@@ -51,7 +53,14 @@ int main(int argc, char *argv[]){
         return -1;
     }
 
-    // Extract parameters
+    // Check if the VideoCapture object has been correctly associated to the webcam
+    cv::VideoCapture webCam(std::atoi(argv[1]));
+    if (webCam.isOpened() == false){
+        std::cerr << "error: Webcam could not be connected." << std::endl;
+        return -1;
+    }
+
+    // --- Extract parameters ---
     std::string dictionaryName = argv[2];
     std::string detectorParamsFile = argv[3];
     int boardRows = std::atoi(argv[4]);
@@ -60,56 +69,59 @@ int main(int argc, char *argv[]){
     float separation = std::stof(argv[7]);
     std::string fileName = argv[8]; 
 
-    // Process parameters.
+    // --- Global setup variables ---
+    cv::Mat imgOriginal;  // input image
+    int nframe = 0;       // Frame counter
+    char charCheckForKey{0}; // Keypressed
+    
+    // Process parameters for the dictionary
     static int dictionary_name = dictFromString(dictionaryName);
     cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
+
+    cv::aruco::GridBoard gridboard(cv::Size(boardRows, boardCols), markerSize, separation, dictionary);
+    
+    // Process parameters for the detector
     cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
-
-    cv::VideoCapture webCam(std::atoi(argv[1])); // VideoCapture object declaration. Usually 0 is the integrated, 2 is the first external USB one↪→
-
-    if (webCam.isOpened() == false){
-        // Check if the VideoCapture object has been correctly associated to the webcam↪→ 
-        std::cerr << "error: Webcam could not be connected." << std::endl;
-        return -1;
-    }
-
-    cv::Mat imgOriginal;  // input image
-    int nframe = 0; // Frame counter
-
-    char charCheckForKey{0};
-
+    detectorParams.cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+    detectorParams.cornerRefinementWinSize = 5;   
+    detectorParams.cornerRefinementMaxIterations = 30;
+    detectorParams.cornerRefinementMinAccuracy = 0.1;
+    cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+    
     // Collected frames for calibration
     std::vector<std::vector<std::vector<cv::Point2f>>> allMarkerCorners;
     std::vector<std::vector<int>> allMarkerIds;
     cv::Size imageSize;
 
-    // Loop to take images
+    // --- Loop to take images ---
     while (charCheckForKey != 27 && webCam.isOpened()){                                              
-        bool frameSuccess = webCam.read(imgOriginal);
 
+        // Check each frame
+        bool frameSuccess = webCam.read(imgOriginal);
         if (!frameSuccess || imgOriginal.empty()){ 
             std::cerr << "error: Frame could not be read." << std::endl;
             break;
         }
-        charCheckForKey = cv::waitKey(1);
         
         // Show ArUcos in image
         std::vector<int> markerIds;
         std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
 
-        
-        cv::aruco::ArucoDetector detector(dictionary, detectorParams);
-
         // Detect the markers on the imageand draw the markers detected
         detector.detectMarkers(imgOriginal, markerCorners, markerIds, rejectedCandidates);
+        detector.refineDetectedMarkers(imgOriginal, gridboard, markerCorners, markerIds, rejectedCandidates);
+        
         cv::Mat outputImage = imgOriginal.clone();
         cv::aruco::drawDetectedMarkers(outputImage, markerCorners, markerIds);
-
         cv::imshow("imgOriginal", outputImage);
+        
+        // Gets the key pressed
+        charCheckForKey = cv::waitKey(1); 
 
         // Capture image when the c key is pressed and save it
         if (charCheckForKey == 'c' && !markerIds.empty()){
             
+            // Save the image
             printf("Capturing image %d\n", nframe);
             std::string fileName = "/home/david/Documents/IFRoS/Perception/labs/lab1/images/image_" + std::to_string(nframe) + ".jpg";
 
@@ -121,16 +133,10 @@ int main(int argc, char *argv[]){
             // cv::imwrite(fileName, imgOriginal);
             nframe++;
         }
-        // Gets the key pressed
-        charCheckForKey = cv::waitKey(1); 
     }
 
-    // Calibration process
+    // --- Calibration process ---
     cv::Mat cameraMatrix, distCoeffs;
-
-    // Gridboard
-    cv::aruco::GridBoard gridboard(cv::Size(boardRows, boardCols), markerSize, separation, dictionary);
-    cv::aruco::ArucoDetector detector(dictionary, detectorParams);
 
     // if(calibrationFlags & CALIB_FIX_ASPECT_RATIO) {
     //     cameraMatrix = cv::Mat::eye(3, 3, CV_64F);
@@ -138,46 +144,69 @@ int main(int argc, char *argv[]){
     // }
 
     // Prepare data for calibration
-    std::vector<cv::Point3f> objectPoints;
-    std::vector<cv::Point2f> imagePoints;
-    std::vector<cv::Mat> processedObjectPoints, processedImagePoints;
     size_t nFrames = allMarkerCorners.size();
-    
-    for(size_t frame = 0; frame < nFrames; frame++) {
-        cv::Mat currentImgPoints, currentObjPoints;
-
-        gridboard.matchImagePoints(allMarkerCorners[frame], allMarkerIds[frame], currentObjPoints, currentImgPoints);
-
-        if(currentImgPoints.total() > 0 && currentObjPoints.total() > 0) {
-            processedImagePoints.push_back(currentImgPoints);
-            processedObjectPoints.push_back(currentObjPoints);
-        }
-    }
-
-    // Calibrate camera
     std::vector<cv::Mat> rvecs, tvecs;
-    double repError = cv::calibrateCamera(processedObjectPoints, processedImagePoints, imageSize, cameraMatrix, distCoeffs,
-                                    cv::noArray(), cv::noArray(), cv::noArray(), cv::noArray(), cv::noArray()
-                                    // calibrationFlags
-                                );
-    // Build markerCounterPerFrame
-    std::vector<int> markerCounterPerFrame;
-    markerCounterPerFrame.reserve(allMarkerIds.size());
-    for (const auto& ids : allMarkerIds) {
-        markerCounterPerFrame.push_back(static_cast<int>(ids.size()));
-    }
+    double repError;
 
-    // cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(boardCols, boardRows, markerSize, separation, dictionary);
-    // double repError = cv::aruco::calibrateCameraAruco(
-    //     allMarkerCorners,          // per-frame corners
-    //     allMarkerIds,              // per-frame ids
-    //     markerCounterPerFrame,     // markers per frame
-    //     board,                     // known board geometry
-    //     imageSize,                 // image size
-    //     cameraMatrix,              // output
-    //     distCoeffs,                // output
-    //     rvecs, tvecs, 0
-    // );
+    
+    bool calibrationType = true; // true for aruco, false for classic
+    if (calibrationType == true){ // Calibration using calibrateCameraAruco
+        // Build markerCounterPerFrame
+        std::vector<std::vector<cv::Point2f>> allCorners;
+        std::vector<int> allIds;
+        std::vector<int> markerCounterPerFrame;
+
+        // Store all concatenated corners and ids, and the number of markers per frame
+        for (size_t frame = 0; frame < nFrames; ++frame) {
+            const auto& ids = allMarkerIds[frame];
+            const auto& corners = allMarkerCorners[frame];
+            markerCounterPerFrame.push_back((int)ids.size());
+            for (size_t i = 0; i < ids.size(); ++i) {
+                allCorners.push_back(corners[i]);   // marker i corners
+                allIds.push_back(ids[i]);           // marker i id
+            }
+        }
+        // cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(boardCols, boardRows, markerSize, separation, dictionary);
+        auto board = cv::makePtr<cv::aruco::GridBoard>(
+            cv::Size(boardRows, boardCols),
+            markerSize,
+            separation,
+            dictionary
+        );
+
+        repError = cv::aruco::calibrateCameraAruco(
+            allCorners,          // per-frame corners
+            allIds,              // per-frame ids
+            markerCounterPerFrame,     // markers per frame
+            board,                     // known board geometry
+            imageSize,                 // image size
+            cameraMatrix,              // output
+            distCoeffs,                // output
+            rvecs, tvecs, 0
+        );
+            
+        
+    }
+    else{ // Calibration using cameraCalibrate
+        std::vector<cv::Mat> processedObjectPoints, processedImagePoints;
+
+        for(size_t frame = 0; frame < nFrames; frame++) {
+            cv::Mat currentImgPoints, currentObjPoints;
+
+            gridboard.matchImagePoints(allMarkerCorners[frame], allMarkerIds[frame], currentObjPoints, currentImgPoints);
+
+            if(currentImgPoints.total() > 0 && currentObjPoints.total() > 0) {
+                processedImagePoints.push_back(currentImgPoints);
+                processedObjectPoints.push_back(currentObjPoints);
+            }
+        }
+
+        // Calibrate camera
+        repError = cv::calibrateCamera(processedObjectPoints, processedImagePoints, imageSize, cameraMatrix, distCoeffs,
+                                        cv::noArray(), cv::noArray(), cv::noArray(), cv::noArray(), cv::noArray()
+                                        // calibrationFlags
+                                    );
+    }
 
     // Prints the outputs and saves the file
     std::cout << "Reprojection error: " << repError << "\n";

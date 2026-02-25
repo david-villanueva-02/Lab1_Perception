@@ -22,16 +22,22 @@
 #     PRIVATE -O3 -std=c++11
 # )
 
+cmake_minimum_required(VERSION 3.16)
+project(lab1 LANGUAGES CXX)
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-cmake_minimum_required(VERSION 3.16)
-project(example LANGUAGES CXX)
 
 find_package(OpenCV REQUIRED)
+
+message(STATUS "OpenCV version: ${OpenCV_VERSION}")
+message(STATUS "OpenCV include dirs: ${OpenCV_INCLUDE_DIRS}")
+message(STATUS "OpenCV libs: ${OpenCV_LIBS}")
+message(STATUS "OpenCV_DIR: ${OpenCV_DIR}")
 
 # Example code
 add_executable(example
