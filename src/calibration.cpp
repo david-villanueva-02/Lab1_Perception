@@ -6,7 +6,8 @@
 #include "opencv2/imgcodecs.hpp"
 #include <string>
 #include <map>
-#include <filesystem>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core/mat.hpp>
 
 // Dictionary that maps the string input to the actual dictionary
 static int dictFromString(const std::string& name){
@@ -57,18 +58,38 @@ int main(int argc, char *argv[])
         std::cerr << "error: Webcam could not be connected." << std::endl;
         return -1;
     }
+    // Extract parameters
+    std::string dictionaryName = argv[2];
+    std::string detectorParamsFile = argv[3];
+    int boardRows = std::atoi(argv[4]);
+    int boardCols = std::atoi(argv[5]);
+    float markerSize = std::stof(argv[6]);
+    float separation = std::stof(argv[7]);
+    std::string fileName = argv[8];
 
     cv::Mat imgOriginal;  // input image
 
-    // Process parameters.
-    std::string dictionaryName = argv[2];
     static int dictionary_name = dictFromString(dictionaryName);
+
+    // create the parametes for the detector and get the dictionary to use.
+    cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
+    cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
 
     char charCheckForESCKey{0};
     char charCheckForCKey{0};
     int nframe = 0;
 
     cv::namedWindow("imgOriginal");
+
+    // Create board object and ArucoDetector
+    cv::aruco::GridBoard gridboard(cv::Size(boardRows, boardCols), markerSize, separation, dictionary);
+    cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+
+    // Collected frames for calibration
+    std::vector<std::vector<std::vector<cv::Point2f>>> allMarkerCorners;
+    std::vector<std::vector<int>> allMarkerIds;
+    cv::Size imageSize;
+
 
     while (charCheckForESCKey != 27 && webCam.isOpened())
     {                                                 // loop until ESC key is pressed or webcam is lost
@@ -79,38 +100,71 @@ int main(int argc, char *argv[])
             std::cerr << "error: Frame could not be read." << std::endl;
             break;
         }
-        charCheckForCKey = cv::waitKey(1);
-        if (charCheckForCKey == 'c' && std::atoi(argv[3]) == 1)
-        {
-            printf("Capturing image %d\n", nframe);
-            std::string fileName = "/home/juan/Documents/IFROS/perception/LAB1Git/Lab1_Perception/images/image_" + std::to_string(nframe) + ".jpg";
-            printf("Saving image to %s\n", fileName.c_str());
-            cv::imwrite(fileName, imgOriginal);
-            nframe++;
-        }
-        else if(charCheckForCKey == 's' && std::atoi(argv[3]) == 1)
-        {
-            std::string image_set_path = "home/juan/Documents/IFROS/perception/LAB1Git/Lab1_Perception/images/";
-        }
-        /*
         // create matrix to store the marker corners and ids
         std::vector<int> markerIds;
         std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
-
-        // create the parametes for the detector and get the dictionary to use.
-        cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
-        cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
         cv::aruco::ArucoDetector detector(dictionary, detectorParams);
 
+        
         // detect the markers on the imageand draw the markers detected
         detector.detectMarkers(imgOriginal, markerCorners, markerIds, rejectedCandidates);
         cv::Mat outputImage = imgOriginal.clone();
         cv::aruco::drawDetectedMarkers(outputImage, markerCorners, markerIds);
 
-        // Show output video results windows*/
-        cv::imshow("imgOriginal", imgOriginal);
+        // Show output video results windows
+        cv::imshow("imgOriginal", outputImage);
 
+        charCheckForCKey = cv::waitKey(1);
+        // check if a picture should be taken and saved
+        if (charCheckForCKey == 'c' && !markerIds.empty()) //&&// !markerIds.empty())
+        {
+            std::cout << "Frame captured" << std::endl;
+            allMarkerCorners.push_back(markerCorners);
+            allMarkerIds.push_back(markerIds);
+            imageSize = imgOriginal.size();
+        }
+        
         charCheckForESCKey = cv::waitKey(1); // gets the key pressed
+        if (charCheckForESCKey == 27) // ESC key pressed
+        {
+            break;
+        }
     }
+    cv::Mat cameraMatrix, distCoeffs;
+ 
+    //if(calibrationFlags & CALIB_FIX_ASPECT_RATIO) {
+    //cameraMatrix = Mat::eye(3, 3, CV_64F);
+    //cameraMatrix.at<double>(0, 0) = aspectRatio;
+    //}
+        // Prepare data for calibration
+    std::vector<cv::Point3f> objectPoints;
+    std::vector<cv::Point2f> imagePoints;
+    std::vector<cv::Mat> processedObjectPoints, processedImagePoints;
+    size_t nFrames = allMarkerCorners.size();
+    for(size_t frame = 0; frame < nFrames; frame++) {
+    cv::Mat currentImgPoints, currentObjPoints;
+https://docs.opencv.org/3.4/da/d13/tutorial_aruco_calibration.html
+    gridboard.matchImagePoints(allMarkerCorners[frame], allMarkerIds[frame], currentObjPoints, currentImgPoints);
+
+    if(currentImgPoints.total() > 0 && currentObjPoints.total() > 0) {
+        processedImagePoints.push_back(currentImgPoints);
+        processedObjectPoints.push_back(currentObjPoints);
+    }        
+    }
+    double repError = calibrateCamera(processedObjectPoints, processedImagePoints, imageSize, cameraMatrix, distCoeffs,
+                                      cv::noArray(), cv::noArray(), cv::noArray(), cv::noArray(), cv::noArray());
+    // Prints the outputs and saves the file
+
+    // Save the calibration results to a file
+    std::cout << "Reprojection error: " << repError << "\n";
+    std::cout << "Camera matrix:\n" << cameraMatrix << "\n";
+    std::cout << "Dist coeffs:\n" << distCoeffs << "\n";
+
+    // Save to YAML
+    cv::FileStorage fs(fileName, cv::FileStorage::WRITE);
+    fs << "camera_matrix" << cameraMatrix;
+    fs << "dist_coeffs" << distCoeffs;
+    fs << "reprojection_error" << repError;
+    fs.release();
     return 0;
 }
