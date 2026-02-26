@@ -118,3 +118,19 @@ ${OpenCV_LIBS}
 )
 
 target_compile_options(calibrate PRIVATE -O3)
+
+# Pose estimation
+add_executable(pose_estimation
+    src/pose_estimation.cpp
+)
+
+target_include_directories(pose_estimation PUBLIC
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(pose_estimation PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(pose_estimation PRIVATE -O3)

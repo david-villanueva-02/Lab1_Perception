@@ -77,7 +77,6 @@ int main(int argc, char *argv[]){
     // Process parameters for the dictionary
     static int dictionary_name = dictFromString(dictionaryName);
     cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
-
     cv::aruco::GridBoard gridboard(cv::Size(boardRows, boardCols), markerSize, separation, dictionary);
     
     // Process parameters for the detector
@@ -184,9 +183,8 @@ int main(int argc, char *argv[]){
             distCoeffs,                // output
             rvecs, tvecs, 0
         );
-            
-        
     }
+
     else{ // Calibration using cameraCalibrate
         std::vector<cv::Mat> processedObjectPoints, processedImagePoints;
 
