@@ -157,3 +157,19 @@ ${OpenCV_LIBS}
 )
 
 target_compile_options(relative_pose_estimation PRIVATE -O3)
+
+# draw cube
+add_executable(distance_estimation
+    src/distance_estimation.cpp
+)
+
+target_include_directories(distance_estimation PRIVATE
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(distance_estimation PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(distance_estimation PRIVATE -O3)

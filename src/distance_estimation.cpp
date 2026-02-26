@@ -9,17 +9,6 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core/mat.hpp>
 
-#include "opencv2/core/core.hpp"
-#include "opencv2/imgproc.hpp"
-#include "opencv2/highgui.hpp"
-#include <opencv2/objdetect/aruco_detector.hpp>
-#include <iostream>
-#include "opencv2/imgcodecs.hpp"
-#include <string>
-#include <map>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/core/mat.hpp>
-
 // Dictionary that maps the string input to the actual dictionary
 static int dictFromString(const std::string& name){
     static const std::map<std::string,int> m = {
@@ -214,7 +203,7 @@ int main(int argc, char *argv[])
                     // Estimate the pose of the marker
                     cv::solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(counter), tvecs.at(counter));
                     // Draw the axis on the marker
-                    cv::drawFrameAxes(outputImage, camMatrix, distCoeffs, rvecs[counter], tvecs[counter], markerSize * 1.5f, 2);
+                    //cv::drawFrameAxes(outputImage, camMatrix, distCoeffs, rvecs[counter], tvecs[counter], markerSize * 1.5f, 2);
                     counter++;
 
                     // check if the markers with the specified ids are detected and draw them
@@ -222,8 +211,28 @@ int main(int argc, char *argv[])
                     int cnt2 = count(IDselected.begin(), IDselected.end(), std::stoi(MarkerId2));
                     if (cnt1 > 0 && cnt2 >0)
                     {
+                        std::vector<cv::Point3f> origin(1, cv::Point3f(0,0,0));
+                        std::vector<cv::Point2f> imgPt0, imgPt1;
+                        // Project origin of marker 1
+                        cv::projectPoints(origin,
+                                        rvecs[0],
+                                        tvecs[0],
+                                        camMatrix,
+                                        distCoeffs,
+                                        imgPt0);
+
+                        // Project origin of marker 2
+                        cv::projectPoints(origin,
+                                        rvecs[1],
+                                        tvecs[1],
+                                        camMatrix,
+                                        distCoeffs,
+                                        imgPt1);
+                        
+                        cv::line(outputImage, imgPt0[0], imgPt1[0], cv::Scalar(0, 255, 0), 2);
+
                         // draw the marker
-                        cv::aruco::drawDetectedMarkers(outputImage, markerCornersselected, IDselected);
+                        //cv::aruco::drawDetectedMarkers(outputImage, markerCornersselected, IDselected);
                         break;
                     }
                     
@@ -236,30 +245,16 @@ int main(int argc, char *argv[])
         double delta_y = tvecs[1][1] - tvecs[0][1];
         double delta_z = tvecs[1][2] - tvecs[0][2];
 
-        // Adjust if the order is different
-        if (delta_x < 0) { // marker 1 in at the right
-            delta_x = -delta_x;
-            delta_y = -delta_y;
-            delta_z = -delta_z;
-
-        }
-
+        double distance = sqrt(delta_x*delta_x + delta_y*delta_y + delta_z*delta_z);
         // Assign the text to show and format it
-        char bufX[10], bufY[10], bufZ[10];
-        std::snprintf(bufX, sizeof(bufX), "X = %.5f", delta_x);
-        std::snprintf(bufY, sizeof(bufY), "Y = %.5f", delta_y);
-        std::snprintf(bufZ, sizeof(bufZ), "Z = %.5f", delta_z);
-        
-        // Show the text in the image
-        cv::putText(outputImage, bufX, cv::Point(20,40),
-        cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
-        
-        cv::putText(outputImage, bufY, cv::Point(20,70),
-        cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
-        
-        cv::putText(outputImage, bufZ, cv::Point(20,100),
-        cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
+        char bufdistance[30];
+        std::snprintf(bufdistance, sizeof(bufdistance), "Distance = %.5f", distance);
 
+        // Show the text in the image
+        cv::putText(outputImage, bufdistance, cv::Point(20,20),
+        cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
+        
+        
         // Show output video results windows
         cv::imshow("imgOriginal", outputImage);
         charCheckForESCKey = cv::waitKey(1); // gets the key pressed
