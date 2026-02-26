@@ -1,0 +1,185 @@
+#include "opencv2/core/core.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/highgui.hpp"
+#include <opencv2/objdetect/aruco_detector.hpp>
+#include <iostream>
+#include "opencv2/imgcodecs.hpp"
+#include <string>
+#include <map>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core/mat.hpp>
+
+#include "opencv2/core/core.hpp"
+#include "opencv2/imgproc.hpp"
+#include "opencv2/highgui.hpp"
+#include <opencv2/objdetect/aruco_detector.hpp>
+#include <iostream>
+#include "opencv2/imgcodecs.hpp"
+#include <string>
+#include <map>
+#include <opencv2/calib3d.hpp>
+#include <opencv2/core/mat.hpp>
+
+// Dictionary that maps the string input to the actual dictionary
+static int dictFromString(const std::string& name){
+    static const std::map<std::string,int> m = {
+        {"DICT_4X4_50", cv::aruco::DICT_4X4_50},
+        {"DICT_4X4_100", cv::aruco::DICT_4X4_100},
+        {"DICT_4X4_250", cv::aruco::DICT_4X4_250},
+        {"DICT_4X4_1000", cv::aruco::DICT_4X4_1000},
+
+        {"DICT_5X5_50", cv::aruco::DICT_5X5_50},
+        {"DICT_5X5_100", cv::aruco::DICT_5X5_100},
+        {"DICT_5X5_250", cv::aruco::DICT_5X5_250},
+        {"DICT_5X5_1000", cv::aruco::DICT_5X5_1000},
+
+        {"DICT_6X6_50", cv::aruco::DICT_6X6_50},
+        {"DICT_6X6_100", cv::aruco::DICT_6X6_100},
+        {"DICT_6X6_250", cv::aruco::DICT_6X6_250},
+        {"DICT_6X6_1000", cv::aruco::DICT_6X6_1000},
+
+        {"DICT_7X7_50", cv::aruco::DICT_7X7_50},
+        {"DICT_7X7_100", cv::aruco::DICT_7X7_100},
+        {"DICT_7X7_250", cv::aruco::DICT_7X7_250},
+        {"DICT_7X7_1000", cv::aruco::DICT_7X7_1000},
+
+        {"DICT_ARUCO_ORIGINAL", cv::aruco::DICT_ARUCO_ORIGINAL}
+    };
+
+    auto it = m.find(name);
+    if (it == m.end())
+        throw std::runtime_error("Unknown dictionary: " + name);
+
+    return it->second;
+}
+
+bool readCameraParamsFromCommandLine(
+    cv::Mat& camMatrix,
+    cv::Mat& distCoeffs){
+
+    // Extract the camera parameters file name 
+    std::string filename = "/home/juan/Documents/IFROS/perception/LAB1Git/Lab1_Perception/src/calibration_v3"; 
+
+    if (filename.empty()) {
+        std::cerr << "Camera parameters file not provided." << std::endl;
+        return false;
+    }
+
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
+    if (!fs.isOpened()) {
+        std::cerr << "Cannot open camera file: " << filename << std::endl;
+        return false;
+    }
+
+    // Save the parameters from the file
+    fs["camera_matrix"] >> camMatrix;
+    fs["dist_coeffs"] >> distCoeffs;
+
+    if (camMatrix.empty() || distCoeffs.empty()) {
+        std::cerr << "Invalid camera parameters in file." << std::endl;
+        return false;
+    }
+
+    // Return true if success
+    return true;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc < 4)
+    {
+        std::cout << "Usage: ./calibration <video_source_no> <dictionary_name> <if_capture>" << std::endl;
+        return -1;
+    }
+
+    // std::cout << std::atoi(argv[1]) << std::endl;
+    cv::VideoCapture webCam(std::atoi(argv[1])); // VideoCapture object declaration. Usually 0 is the integrated, 2 is the first external USB one↪→
+
+    if (webCam.isOpened() == false)
+    { // Check if the VideoCapture object has been correctly associated to the webcam↪→
+        std::cerr << "error: Webcam could not be connected." << std::endl;
+        return -1;
+    }
+    // Extract parameters
+    std::string dictionaryName = argv[2];
+    std::string MarkerId = argv[3];
+    float markerSize = std::stof(argv[4]);
+
+    cv::Mat imgOriginal;  // input image
+
+    static int dictionary_name = dictFromString(dictionaryName);
+
+    // create the parametes for the detector and get the dictionary to use.
+    cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
+    cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
+
+    char charCheckForESCKey{0};
+
+    cv::namedWindow("imgOriginal");
+
+    // set coordinate system
+    cv::Mat objPoints(4, 1, CV_32FC3);
+    objPoints.ptr<cv::Vec3f>(0)[0] = cv::Vec3f(-markerSize/2.f, markerSize/2.f, 0);
+    objPoints.ptr<cv::Vec3f>(0)[1] = cv::Vec3f(markerSize/2.f, markerSize/2.f, 0);
+    objPoints.ptr<cv::Vec3f>(0)[2] = cv::Vec3f(markerSize/2.f, -markerSize/2.f, 0);
+    objPoints.ptr<cv::Vec3f>(0)[3] = cv::Vec3f(-markerSize/2.f, -markerSize/2.f, 0);
+
+    // create the matrix to store the marker corners and ids
+    std::vector<int> markerIds;
+    std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
+
+
+    cv::Mat camMatrix, distCoeffs;
+    readCameraParamsFromCommandLine(camMatrix, distCoeffs);
+
+    while (charCheckForESCKey != 27 && webCam.isOpened())
+    {                                                 // loop until ESC key is pressed or webcam is lost
+        bool frameSuccess = webCam.read(imgOriginal); // get next frame from input stream
+
+        if (!frameSuccess || imgOriginal.empty())
+        { // if the frame was not read or read wrongly
+            std::cerr << "error: Frame could not be read." << std::endl;
+            break;
+        }
+        cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+
+        
+        // detect the markers on the image
+        detector.detectMarkers(imgOriginal, markerCorners, markerIds, rejectedCandidates);
+        // cone the original image
+        cv::Mat outputImage = imgOriginal.clone();
+        // get the size of the markers detected
+        size_t nMarkers = markerCorners.size();
+        // create the vectors to store the rotation and translation vectors of each marker
+        std::vector<cv::Vec3d> rvecs(nMarkers), tvecs(nMarkers);
+        if(!markerIds.empty()) {
+            // Calculate pose for each marker
+            for (size_t i = 0; i < nMarkers; i++) {
+                if(markerIds[i] == std::stoi(MarkerId)) {
+                    // Estimate the pose of the marker
+                    cv::solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
+                    // Draw the axis on the marker
+                    cv::drawFrameAxes(outputImage, camMatrix, distCoeffs, rvecs[i], tvecs[i], markerSize * 1.5f, 2);
+                    // Display the position of the aruco on the image
+                    cv::putText(outputImage, "x: " + std::to_string(tvecs[i][0]), cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+                    cv::putText(outputImage, "y: " + std::to_string(tvecs[i][1]), cv::Point(10, 60), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+                    cv::putText(outputImage, "z: " + std::to_string(tvecs[i][2]), cv::Point(10, 90), cv::FONT_HERSHEY_SIMPLEX, 0.7, cv::Scalar(0, 255, 0), 2);
+                    // extract the corners and ids of the marker to draw only the marker detected with the id specified
+                    std::vector<std::vector<cv::Point2f>> oneCorners{ markerCorners[i] };
+                    std::vector<int> oneIds{ markerIds[i] };
+                    // draw the marker
+                    cv::aruco::drawDetectedMarkers(outputImage, oneCorners, oneIds);
+                    break;
+                }
+            }
+        }
+        // Show output video results windows
+        cv::imshow("imgOriginal", outputImage);
+        charCheckForESCKey = cv::waitKey(1); // gets the key pressed
+        if (charCheckForESCKey == 27) // ESC key pressed
+        {
+            break;
+        }
+    }
+    return 0;
+}
