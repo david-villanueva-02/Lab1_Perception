@@ -125,3 +125,35 @@ ${OpenCV_LIBS}
 )
 
 target_compile_options(pose_estimation PRIVATE -O3)
+
+# draw cube
+add_executable(draw_cube
+    src/draw_cube.cpp
+)
+
+target_include_directories(draw_cube PRIVATE
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(draw_cube PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(draw_cube PRIVATE -O3)
+
+# draw cube
+add_executable(relative_pose_estimation
+    src/relative_pose_estimation.cpp
+)
+
+target_include_directories(relative_pose_estimation PRIVATE
+${OpenCV_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(relative_pose_estimation PRIVATE
+${OpenCV_LIBS}
+)
+
+target_compile_options(relative_pose_estimation PRIVATE -O3)
