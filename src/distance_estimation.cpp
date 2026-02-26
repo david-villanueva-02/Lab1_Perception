@@ -1,42 +1,142 @@
 #include "opencv2/core/core.hpp"
+#include <opencv2/core.hpp>
+#include <opencv2/core/persistence.hpp>
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
+#include <opencv2/objdetect/aruco_detector.hpp>
+
+#include "opencv2/imgproc.hpp"
+#include "opencv2/imgcodecs.hpp"
+#include "opencv2/highgui.hpp"
+#include <opencv2/calib3d.hpp>
+
 #include <iostream>
+#include <string>
+#include <map>
 
-int main(int argc, char *argv[])
-{
-    if (argc < 2)
-    {
-        std::cerr << "Usage: " << argv[0] << " <video source no.>" << std::endl;
+// Dictionary that maps the string input to the actual dictionary
+static int dictFromString(const std::string& name){
+    static const std::map<std::string,int> m = {
+        {"DICT_4X4_50", cv::aruco::DICT_4X4_50},
+        {"DICT_4X4_100", cv::aruco::DICT_4X4_100},
+        {"DICT_4X4_250", cv::aruco::DICT_4X4_250},
+        {"DICT_4X4_1000", cv::aruco::DICT_4X4_1000},
+
+        {"DICT_5X5_50", cv::aruco::DICT_5X5_50},
+        {"DICT_5X5_100", cv::aruco::DICT_5X5_100},
+        {"DICT_5X5_250", cv::aruco::DICT_5X5_250},
+        {"DICT_5X5_1000", cv::aruco::DICT_5X5_1000},
+
+        {"DICT_6X6_50", cv::aruco::DICT_6X6_50},
+        {"DICT_6X6_100", cv::aruco::DICT_6X6_100},
+        {"DICT_6X6_250", cv::aruco::DICT_6X6_250},
+        {"DICT_6X6_1000", cv::aruco::DICT_6X6_1000},
+
+        {"DICT_7X7_50", cv::aruco::DICT_7X7_50},
+        {"DICT_7X7_100", cv::aruco::DICT_7X7_100},
+        {"DICT_7X7_250", cv::aruco::DICT_7X7_250},
+        {"DICT_7X7_1000", cv::aruco::DICT_7X7_1000},
+
+        {"DICT_ARUCO_ORIGINAL", cv::aruco::DICT_ARUCO_ORIGINAL}
+    };
+
+    auto it = m.find(name);
+    if (it == m.end())
+        throw std::runtime_error("Unknown dictionary: " + name);
+
+    return it->second;
+}
+
+bool readCameraParamsFromCommandLine(
+    cv::Mat& camMatrix,
+    cv::Mat& distCoeffs){
+
+    // Extract the camera parameters file name 
+    std::string filename = "/home/david/Documents/IFRoS/Perception/labs/lab1/src/calibration_v2.yaml"; 
+
+    if (filename.empty()) {
+        std::cerr << "Camera parameters file not provided." << std::endl;
+        return false;
+    }
+
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
+    if (!fs.isOpened()) {
+        std::cerr << "Cannot open camera file: " << filename << std::endl;
+        return false;
+    }
+
+    // Save the parameters from the file
+    fs["camera_matrix"] >> camMatrix;
+    fs["dist_coeffs"] >> distCoeffs;
+
+    if (camMatrix.empty() || distCoeffs.empty()) {
+        std::cerr << "Invalid camera parameters in file." << std::endl;
+        return false;
+    }
+
+    // Return true if success
+    return true;
+}
+
+int main(int argc, char *argv[]){
+
+    // Check the number of arguments
+    if (argc != 6)
+    {   
+        std::cout << "Usage is ./relative_pose_estimation <camera_id > <dictionary> <id1> <id2> <size>" << std::endl;
         return -1;
     }
 
-    // std::cout << std::atoi(argv[1]) << std::endl;
-    cv::VideoCapture webCam(std::atoi(argv[1])); // VideoCapture object declaration. Usually 0 is the integrated, 2 is the first external USB one↪→
+    // Extract parameters
+    std::string dictionaryName = argv[2];
+    int markerId1 = std::stoi(argv[3]);
+    int markerId2 = std::stoi(argv[4]);
+    int markerSize = std::stoi(argv[5]);
+    
+    // Process parameters
+    static int dictionary_name = dictFromString(dictionaryName);
+    cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(dictionary_name);
 
-    if (webCam.isOpened() == false)
-    { // Check if the VideoCapture object has been correctly associated to the webcam↪→
-        std::cerr << "error: Webcam could not be connected." << std::endl;
+    // Process parameters for the detector
+    cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
+    detectorParams.cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+    detectorParams.cornerRefinementWinSize = 5;   
+    detectorParams.cornerRefinementMaxIterations = 30;
+    detectorParams.cornerRefinementMinAccuracy = 0.1;
+    cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+
+    // Read camera parameters
+    cv::Mat camMatrix, distCoeffs;
+    const bool success = readCameraParamsFromCommandLine(camMatrix, distCoeffs);
+    if (!success) {
+        std::cerr << "Failed to read camera parameters." << std::endl;
         return -1;
     }
 
+    // Print the camera parameters
+    std::cout << "Camera Matrix:\n" << camMatrix << std::endl;
+    std::cout << "Distortion Coefficients:\n" << distCoeffs << std::endl;
+
+    // set coordinate system
+    cv::Mat objPoints(4, 1, CV_32FC3);
+    objPoints.ptr<cv::Vec3f>(0)[0] = cv::Vec3f(-markerSize/2.f, markerSize/2.f, 0);
+    objPoints.ptr<cv::Vec3f>(0)[1] = cv::Vec3f(markerSize/2.f, markerSize/2.f, 0);
+    objPoints.ptr<cv::Vec3f>(0)[2] = cv::Vec3f(markerSize/2.f, -markerSize/2.f, 0);
+    objPoints.ptr<cv::Vec3f>(0)[3] = cv::Vec3f(-markerSize/2.f, -markerSize/2.f, 0);
+    
+    // Open video capture
+    cv::VideoCapture webCam(std::atoi(argv[1])); 
+    if (!webCam.isOpened()) {
+        std::cerr << "Could not open camera index " << std::atoi(argv[1]) << "\n";
+        return 1;
+    }
+
+    // Get key pressed from the keyboard
+    char charCheckForKey{0};
     cv::Mat imgOriginal;  // input image
-    cv::Mat imgGrayScale; // grayscale image
-    cv::Mat imgBlurred;   // blurred image
-    cv::Mat imgCanny;     // edge image
 
-    char charCheckForESCKey{0};
-    int lowTh{45};
-    int highTh{90};
+    while (charCheckForKey != 27 && webCam.isOpened()){    
 
-    cv::namedWindow("imgOriginal");
-    cv::namedWindow("imgCanny");
-
-    cv::createTrackbar("LowTh", "imgCanny", &lowTh, 100);
-    cv::createTrackbar("HighTh", "imgCanny", &highTh, 100);
-
-    while (charCheckForESCKey != 27 && webCam.isOpened())
-    {                                                 // loop until ESC key is pressed or webcam is lost
         bool frameSuccess = webCam.read(imgOriginal); // get next frame from input stream
 
         if (!frameSuccess || imgOriginal.empty())
@@ -44,22 +144,79 @@ int main(int argc, char *argv[])
             std::cerr << "error: Frame could not be read." << std::endl;
             break;
         }
+        
+        // Show ArUcos in image
+        std::vector<int> markerIds;
+        std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
 
-        cv::cvtColor(imgOriginal, imgGrayScale, cv::COLOR_BGR2GRAY);     // original video is converted to grayscale into imgGrayScale↪→
-        cv::GaussianBlur(imgGrayScale, imgBlurred, cv::Size(5, 5), 1.8); // blurrs the grayscale video. Check OpenCV docs for explanation of parameters↪→
-        cv::Canny(imgBlurred, imgCanny, lowTh, highTh);                  // Canny edge detection. Check OpenCV docs for explanation of parameters↪→
+        // detect the markers on the image and draw the markers detected
+        detector.detectMarkers(imgOriginal, markerCorners, markerIds, rejectedCandidates);
+        cv::Mat outputImage = imgOriginal.clone();
+        size_t nMarkers = markerIds.size();
 
-        // Declaration of windows for output video results. Check OpenCV docs for explanation of parameters
-        cv::namedWindow("imgOriginal");
-        cv::namedWindow("imgCanny");
+        std::vector<cv::Vec3d> rvecs(2), tvecs(2);
+        std::vector<std::vector<cv::Point2f>> desiredCorners(2);
+        int counter = 0;
 
-        // Declaration of trackbars to change thresholds. Check OpenCV docs for explanation of parameters
+        if (!markerIds.empty()) {
+            // Calculate pose for each marker
+            for (size_t i = 0; i < nMarkers; ++i) {
+                if(markerIds[i] == markerId1 || markerIds[i] == markerId2) {
+                
+                    // Estimate pose of the marker
+                    cv::solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(counter), tvecs.at(counter), false, cv::SOLVEPNP_IPPE_SQUARE);
+                    desiredCorners[counter] = markerCorners.at(i);
 
-        // Show output video results windows
-        cv::imshow("imgOriginal", imgOriginal);
-        cv::imshow("imgCanny", imgCanny);
+                    counter++;
 
-        charCheckForESCKey = cv::waitKey(1); // gets the key pressed
+                    // Avoid unnecessary calculations 
+                    if (counter == 2) { break; }
+                }
+            }
+
+            // If all markers have been detected, we can calculate the relative pose and draw the line between the two markers
+            if (counter == 2){
+
+                // Calculate the relative translation between the two markers
+                double delta_x = tvecs[1][0] - tvecs[0][0];
+                double delta_y = tvecs[1][1] - tvecs[0][1];
+                double delta_z = tvecs[1][2] - tvecs[0][2];
+
+                std::vector<cv::Point3f> origin(1, cv::Point3f(0,0,0));
+                std::vector<cv::Point2f> imgPt0, imgPt1;
+
+                // Project origin of marker 1
+                cv::projectPoints(origin,
+                                rvecs[0],
+                                tvecs[0],
+                                camMatrix,
+                                distCoeffs,
+                                imgPt0);
+
+                // Project origin of marker 2
+                cv::projectPoints(origin,
+                                rvecs[1],
+                                tvecs[1],
+                                camMatrix,
+                                distCoeffs,
+                                imgPt1);
+                
+                cv::line(outputImage, imgPt0[0], imgPt1[0], cv::Scalar(0, 255, 0), 2);
+
+                // Assign the text to show and format it
+                double distance_val = sqrt(delta_x*delta_x + delta_y*delta_y + delta_z*delta_z);
+                char distance_str[10];
+                std::snprintf(distance_str, sizeof(distance_str), "D = %.5f", distance_val);
+                
+                // Show the text in the image
+                cv::putText(outputImage, distance_str, cv::Point(20,40),
+                cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
+            }
+        }
+
+        cv::imshow("pose_estimation", outputImage);
+        int key = cv::waitKey(1);
     }
+
     return 0;
 }
