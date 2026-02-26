@@ -81,16 +81,17 @@ bool readCameraParamsFromCommandLine(
 int main(int argc, char *argv[]){
 
     // Check the number of arguments
-    if (argc != 5)
+    if (argc != 6)
     {   
-        std::cout << "Usage is ./generate_marker <camera_id > <dictionary> <id> <size>" << std::endl;
+        std::cout << "Usage is ./relative_pose_estimation <camera_id > <dictionary> <id1> <id2> <size>" << std::endl;
         return -1;
     }
 
     // Extract parameters
     std::string dictionaryName = argv[2];
-    int markerId = std::stoi(argv[3]);
-    int markerSize = std::stoi(argv[4]);
+    int markerId1 = std::stoi(argv[3]);
+    int markerId2 = std::stoi(argv[4]);
+    int markerSize = std::stoi(argv[5]);
     
     // Process parameters
     static int dictionary_name = dictFromString(dictionaryName);
@@ -152,32 +153,56 @@ int main(int argc, char *argv[]){
         detector.detectMarkers(imgOriginal, markerCorners, markerIds, rejectedCandidates);
         cv::Mat outputImage = imgOriginal.clone();
         size_t nMarkers = markerIds.size();
-        std::vector<cv::Vec3d> rvecs(nMarkers), tvecs(nMarkers);
+
+        std::vector<cv::Vec3d> rvecs(2), tvecs(2);
+        int counter = 0;
 
         if (!markerIds.empty()) {
             // Calculate pose for each marker
             for (size_t i = 0; i < nMarkers; ++i) {
-                if(markerIds[i] != markerId) { continue; }
+                if(markerIds[i] == markerId1 || markerIds[i] == markerId2) {
                 
-                // Estimate pose of the marker
-                cv::solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
+                    // Estimate pose of the marker
+                    cv::solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(counter), tvecs.at(counter), false, cv::SOLVEPNP_IPPE_SQUARE);
 
-                // Draw the axis for the marker
-                cv::drawFrameAxes(outputImage, camMatrix, distCoeffs, rvecs[i], tvecs[i], markerSize * 1.5f, 2);
-                
-                // Add a border to the marker detected
-                std::vector<std::vector<cv::Point2f>> oneCorners{ markerCorners[i] };
-                std::vector<int> oneIds{ markerIds[i] };
-                cv::aruco::drawDetectedMarkers(outputImage, oneCorners, oneIds);
+                    // Draw the axis for the marker
+                    cv::drawFrameAxes(outputImage, camMatrix, distCoeffs, rvecs[counter], tvecs[counter], markerSize * 1.5f, 2);
+                    
+                    // Add a border to the marker detected
+                    std::vector<std::vector<cv::Point2f>> oneCorners{ markerCorners[i] };
+                    std::vector<int> oneIds{ markerIds[i] };
+                    cv::aruco::drawDetectedMarkers(outputImage, oneCorners, oneIds);
 
-                // Put coordinates in the image
-                // XYZ text
-                cv::Vec3d tvec = tvecs[i];
+                    counter++;
+
+                    // Avoid unnecessary calculations 
+                    if (counter == 2) { break; }
+                }
+            }
+
+            // If all markers have been detected, we can calculate the relative pose and draw the line between the two markers
+            if (counter == 2){
+
+                // Calculate the relative translation between the two markers
+                double delta_x = tvecs[1][0] - tvecs[0][0];
+                double delta_y = tvecs[1][1] - tvecs[0][1];
+                double delta_z = tvecs[1][2] - tvecs[0][2];
+
+                // Adjust if the order is different
+                if (delta_x < 0) { // marker 1 in at the right
+                    delta_x = -delta_x;
+                    delta_y = -delta_y;
+                    delta_z = -delta_z;
+
+                }
+
+                // Assign the text to show and format it
                 char bufX[10], bufY[10], bufZ[10];
-                std::snprintf(bufX, sizeof(bufX), "X = %.5f", tvec[0]);
-                std::snprintf(bufY, sizeof(bufY), "Y = %.5f", tvec[1]);
-                std::snprintf(bufZ, sizeof(bufZ), "Z = %.5f", tvec[2]);
-
+                std::snprintf(bufX, sizeof(bufX), "X = %.5f", delta_x);
+                std::snprintf(bufY, sizeof(bufY), "Y = %.5f", delta_y);
+                std::snprintf(bufZ, sizeof(bufZ), "Z = %.5f", delta_z);
+                
+                // Show the text in the image
                 cv::putText(outputImage, bufX, cv::Point(20,40),
                 cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
                 
@@ -186,8 +211,6 @@ int main(int argc, char *argv[]){
                 
                 cv::putText(outputImage, bufZ, cv::Point(20,100),
                 cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
-
-                break;
             }
         }
 

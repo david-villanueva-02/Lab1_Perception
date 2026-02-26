@@ -78,6 +78,42 @@ bool readCameraParamsFromCommandLine(
     return true;
 }
 
+void drawCube(
+    // Creates the 3D points of the cube and projects them to the image plane, then draws the edges of the cube
+    cv::InputOutputArray image, cv::InputArray camera_matrix,
+    cv::InputArray dist_coeffs, cv::InputArray rvec, cv::InputArray tvec,
+    float l){
+    float half_l = l / 2.0;
+
+    // Project cube points
+    std::vector<cv::Point3f> axis_points;
+    axis_points.push_back(cv::Point3f(half_l, half_l, l));
+    axis_points.push_back(cv::Point3f(half_l, -half_l, l));
+    axis_points.push_back(cv::Point3f(-half_l, -half_l, l));
+    axis_points.push_back(cv::Point3f(-half_l, half_l, l));
+    axis_points.push_back(cv::Point3f(half_l, half_l, 0));
+    axis_points.push_back(cv::Point3f(half_l, -half_l, 0));
+    axis_points.push_back(cv::Point3f(-half_l, -half_l, 0));
+    axis_points.push_back(cv::Point3f(-half_l, half_l, 0));
+
+    std::vector<cv::Point2f> image_points;
+    projectPoints(axis_points, rvec, tvec, camera_matrix, dist_coeffs, image_points);
+
+    // Draw cube edges lines
+    cv::line(image, image_points[0], image_points[1], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[0], image_points[3], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[0], image_points[4], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[1], image_points[2], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[1], image_points[5], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[2], image_points[3], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[2], image_points[6], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[3], image_points[7], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[4], image_points[5], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[4], image_points[7], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[5], image_points[6], cv::Scalar(255, 0, 0), 3);
+    cv::line(image, image_points[6], image_points[7], cv::Scalar(255, 0, 0), 3);
+}
+
 int main(int argc, char *argv[]){
 
     // Check the number of arguments
@@ -162,36 +198,16 @@ int main(int argc, char *argv[]){
                 // Estimate pose of the marker
                 cv::solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
 
-                // Draw the axis for the marker
-                cv::drawFrameAxes(outputImage, camMatrix, distCoeffs, rvecs[i], tvecs[i], markerSize * 1.5f, 2);
-                
-                // Add a border to the marker detected
                 std::vector<std::vector<cv::Point2f>> oneCorners{ markerCorners[i] };
                 std::vector<int> oneIds{ markerIds[i] };
                 cv::aruco::drawDetectedMarkers(outputImage, oneCorners, oneIds);
-
-                // Put coordinates in the image
-                // XYZ text
-                cv::Vec3d tvec = tvecs[i];
-                char bufX[10], bufY[10], bufZ[10];
-                std::snprintf(bufX, sizeof(bufX), "X = %.5f", tvec[0]);
-                std::snprintf(bufY, sizeof(bufY), "Y = %.5f", tvec[1]);
-                std::snprintf(bufZ, sizeof(bufZ), "Z = %.5f", tvec[2]);
-
-                cv::putText(outputImage, bufX, cv::Point(20,40),
-                cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
                 
-                cv::putText(outputImage, bufY, cv::Point(20,70),
-                cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
-                
-                cv::putText(outputImage, bufZ, cv::Point(20,100),
-                cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0,255,0), 2, cv::LINE_AA);
-
+                drawCube(outputImage, camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i), markerSize);
                 break;
             }
         }
 
-        cv::imshow("pose_estimation", outputImage);
+        cv::imshow("draw_cube", outputImage);
         int key = cv::waitKey(1);
     }
 
