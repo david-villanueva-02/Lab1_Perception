@@ -205,8 +205,8 @@ int main(int argc, char *argv[]){
 
                 // Assign the text to show and format it
                 double distance_val = sqrt(delta_x*delta_x + delta_y*delta_y + delta_z*delta_z);
-                char distance_str[10];
-                std::snprintf(distance_str, sizeof(distance_str), "D = %.5f", distance_val);
+                char distance_str[15];
+                std::snprintf(distance_str, sizeof(distance_str), "D = %.0f mm", distance_val);
                 
                 // Show the text in the image
                 cv::putText(outputImage, distance_str, cv::Point(20,40),
