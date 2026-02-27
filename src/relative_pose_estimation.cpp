@@ -47,7 +47,7 @@ static int dictFromString(const std::string& name){
     return it->second;
 }
 
-bool readCameraParamsFromCommandLine(
+bool readCameraParams(
     cv::Mat& camMatrix,
     cv::Mat& distCoeffs){
 
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]){
     std::string dictionaryName = argv[2];
     int markerId1 = std::stoi(argv[3]);
     int markerId2 = std::stoi(argv[4]);
-    int markerSize = std::stoi(argv[5]);
+    double markerSize = std::stod(argv[5]);
     
     // Process parameters
     static int dictionary_name = dictFromString(dictionaryName);
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]){
 
     // Read camera parameters
     cv::Mat camMatrix, distCoeffs;
-    const bool success = readCameraParamsFromCommandLine(camMatrix, distCoeffs);
+    const bool success = readCameraParams(camMatrix, distCoeffs);
     if (!success) {
         std::cerr << "Failed to read camera parameters." << std::endl;
         return -1;
@@ -148,6 +148,8 @@ int main(int argc, char *argv[]){
         // Show ArUcos in image
         std::vector<int> markerIds;
         std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
+        // std::vector<std::vector<cv::Point2f>> interest_markerCorners(2);
+
 
         // detect the markers on the image and draw the markers detected
         detector.detectMarkers(imgOriginal, markerCorners, markerIds, rejectedCandidates);
@@ -161,6 +163,9 @@ int main(int argc, char *argv[]){
             // Calculate pose for each marker
             for (size_t i = 0; i < nMarkers; ++i) {
                 if(markerIds[i] == markerId1 || markerIds[i] == markerId2) {
+
+                    // Store the marker corners of interest
+                    // interest_markerCorners.push_back(markerCorners[i]);
                 
                     // Estimate pose of the marker
                     cv::solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(counter), tvecs.at(counter), false, cv::SOLVEPNP_IPPE_SQUARE);
@@ -182,19 +187,44 @@ int main(int argc, char *argv[]){
 
             // If all markers have been detected, we can calculate the relative pose and draw the line between the two markers
             if (counter == 2){
+                
+                // Transforms rotation vectors into rotation matrices
+                cv::Mat R1, R2;
+                cv::Rodrigues(rvecs[0], R1);
+                cv::Rodrigues(rvecs[1], R2);
+                
+                // Get the translation vectors of the two markersstd::
+                cv::Mat t1 = (cv::Mat_<double>(3,1) << tvecs[0][0], tvecs[0][1], tvecs[0][2]);
+                cv::Mat t2 = (cv::Mat_<double>(3,1) << tvecs[1][0], tvecs[1][1], tvecs[1][2]);
+                
+                // Deinfe the 3D points relative to the markers' coordinate systems
+                std::vector<cv::Point3f> Pm1 = { cv::Point3f(0.f, 0.f, 0.f) }; // marker-frame center for marker 1
+                std::vector<cv::Point3f> Pm2 = { cv::Point3f(0.f, 0.f, 0.f) }; // marker-frame center for marker 2
+                std::vector<cv::Point2f> pim1, pim2; // projected marker centers into the image plane
+                
+                // Project the marker centers into the image plane
+                cv::projectPoints(Pm1, rvecs[0], tvecs[0], camMatrix, distCoeffs, pim1);
+                cv::projectPoints(Pm2, rvecs[1], tvecs[1], camMatrix, distCoeffs, pim2);
+                
+                // U coordinates of both centers
+                double u1 = pim1[0].x;
+                double u2 = pim2[0].x;
 
-                // Calculate the relative translation between the two markers
-                double delta_x = tvecs[1][0] - tvecs[0][0];
-                double delta_y = tvecs[1][1] - tvecs[0][1];
-                double delta_z = tvecs[1][2] - tvecs[0][2];
-
-                // Adjust if the order is different
-                if (delta_x < 0) { // marker 1 in at the right
-                    delta_x = -delta_x;
-                    delta_y = -delta_y;
-                    delta_z = -delta_z;
-
+                // translation of marker 2 expressed in marker 1 coordinates
+                cv::Mat t_rel;
+                if (u2 > u1) {
+                    t_rel = R1.t() * (t2 - t1);
                 }
+                else {
+                    t_rel = R2.t() * (t1 - t2);
+                }
+                
+                // Get relative translation in x, y and z
+                double delta_x = t_rel.at<double>(0);
+                double delta_y = t_rel.at<double>(1);
+                double delta_z = t_rel.at<double>(2);
+
+                // cv::Rodrigues
 
                 // Assign the text to show and format it
                 char bufX[10], bufY[10], bufZ[10];

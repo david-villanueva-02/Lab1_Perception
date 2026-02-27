@@ -47,7 +47,7 @@ static int dictFromString(const std::string& name){
     return it->second;
 }
 
-bool readCameraParamsFromCommandLine(
+bool readCameraParams(
     cv::Mat& camMatrix,
     cv::Mat& distCoeffs){
 
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]){
 
     // Read camera parameters
     cv::Mat camMatrix, distCoeffs;
-    const bool success = readCameraParamsFromCommandLine(camMatrix, distCoeffs);
+    const bool success = readCameraParams(camMatrix, distCoeffs);
     if (!success) {
         std::cerr << "Failed to read camera parameters." << std::endl;
         return -1;

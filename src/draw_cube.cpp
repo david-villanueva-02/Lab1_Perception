@@ -47,7 +47,7 @@ static int dictFromString(const std::string& name){
     return it->second;
 }
 
-bool readCameraParamsFromCommandLine(
+bool readCameraParams(
     cv::Mat& camMatrix,
     cv::Mat& distCoeffs){
 
@@ -57,7 +57,7 @@ bool readCameraParamsFromCommandLine(
     if (filename.empty()) {
         std::cerr << "Camera parameters file not provided." << std::endl;
         return false;
-    }
+}
 
     cv::FileStorage fs(filename, cv::FileStorage::READ);
     if (!fs.isOpened()) {
@@ -142,7 +142,7 @@ int main(int argc, char *argv[]){
 
     // Read camera parameters
     cv::Mat camMatrix, distCoeffs;
-    const bool success = readCameraParamsFromCommandLine(camMatrix, distCoeffs);
+    const bool success = readCameraParams(camMatrix, distCoeffs);
     if (!success) {
         std::cerr << "Failed to read camera parameters." << std::endl;
         return -1;
