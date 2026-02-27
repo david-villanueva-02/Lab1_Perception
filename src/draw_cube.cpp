@@ -208,7 +208,7 @@ int main(int argc, char *argv[]){
         }
 
         cv::imshow("draw_cube", outputImage);
-        int key = cv::waitKey(1);
+        charCheckForKey = cv::waitKey(1);
     }
 
     return 0;

@@ -5,7 +5,7 @@
 #include "opencv2/highgui.hpp"
 #include <opencv2/calib3d.hpp>
 #include <opencv2/objdetect/aruco_detector.hpp>
-#include <opencv2/objdetect/aruco_board.hpp>  // newer header location in many builds
+#include <opencv2/objdetect/aruco_board.hpp> 
 #include "opencv2/imgcodecs.hpp"
 
 #include <iostream>
@@ -146,7 +146,6 @@ int main(int argc, char *argv[]){
     size_t nFrames = allMarkerCorners.size();
     std::vector<cv::Mat> rvecs, tvecs;
     double repError;
-
     
     bool calibrationType = true; // true for aruco, false for classic
     if (calibrationType == true){ // Calibration using calibrateCameraAruco

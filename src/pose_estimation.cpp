@@ -83,7 +83,7 @@ int main(int argc, char *argv[]){
     // Check the number of arguments
     if (argc != 5)
     {   
-        std::cout << "Usage is ./generate_marker <camera_id > <dictionary> <id> <size>" << std::endl;
+        std::cout << "Usage is ./pose_estimation <camera_id > <dictionary> <id> <size>" << std::endl;
         return -1;
     }
 
@@ -135,7 +135,7 @@ int main(int argc, char *argv[]){
     cv::Mat imgOriginal;  // input image
 
     while (charCheckForKey != 27 && webCam.isOpened()){    
-
+        charCheckForKey = cv::waitKey(1);
         bool frameSuccess = webCam.read(imgOriginal); // get next frame from input stream
 
         if (!frameSuccess || imgOriginal.empty())
@@ -192,7 +192,6 @@ int main(int argc, char *argv[]){
         }
 
         cv::imshow("pose_estimation", outputImage);
-        int key = cv::waitKey(1);
     }
 
     return 0;
